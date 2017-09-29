@@ -46,6 +46,9 @@ export let AppLayoutMap = Object.assign({}, {
 }, React.DOM, rebulma, window.__ra_custom_elements, { Link, });
 
 export function getRenderedComponent(componentObject, resources, debug) {
+  if (debug) {
+    console.debug({resources,componentObject})
+  }
   try {
     if (advancedBinding) {
       AppLayoutMap.ResponsiveLink = ResponsiveLink.bind(this);
@@ -90,6 +93,9 @@ export function getRenderedComponent(componentObject, resources, debug) {
             : this.props, null);
         }
       });
+    }
+    if (renderedCompProps._children  && !componentObject.children) {
+      componentObject.children = renderedCompProps._children;
     }
     let comparisons = {};
     // if (thisprops) {
@@ -179,8 +185,9 @@ export function getRenderedComponent(componentObject, resources, debug) {
     }
    
   } catch (e) {
-    console.error(e, (e.stack) ? e.stack:'no stack');
     console.error({ componentObject, resources, }, 'this', this);
-    return createElement('div', {}, e.toString());
+    console.error(e, (e.stack) ? e.stack:'no stack');
+    throw e;
+    // return createElement('div', {}, e.toString());
   }
 }

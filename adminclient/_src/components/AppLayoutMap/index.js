@@ -163,6 +163,9 @@ var AppLayoutMap = exports.AppLayoutMap = (0, _assign2.default)({}, {
 function getRenderedComponent(componentObject, resources, debug) {
   var _this = this;
 
+  if (debug) {
+    console.debug({ resources: resources, componentObject: componentObject });
+  }
   try {
     if (advancedBinding) {
       AppLayoutMap.ResponsiveLink = _ResponsiveLink2.default.bind(this);
@@ -204,6 +207,9 @@ function getRenderedComponent(componentObject, resources, debug) {
           renderedCompProps[key] = _react2.default.createElement(window.__ra_custom_elements[renderedCompProps[key].replace('func:window.__ra_custom_elements.', '')], renderedCompProps['windowCompProps'] ? renderedCompProps['windowCompProps'] : _this.props, null);
         }
       });
+    }
+    if (renderedCompProps._children && !componentObject.children) {
+      componentObject.children = renderedCompProps._children;
     }
     var comparisons = {};
     // if (thisprops) {
@@ -276,8 +282,9 @@ function getRenderedComponent(componentObject, resources, debug) {
       }) : typeof componentObject.children === 'undefined' ? renderedCompProps && renderedCompProps.children && typeof renderedCompProps.children === 'string' ? renderedCompProps.children : null : componentObject.children);
     }
   } catch (e) {
-    console.error(e, e.stack ? e.stack : 'no stack');
     console.error({ componentObject: componentObject, resources: resources }, 'this', this);
-    return (0, _react.createElement)('div', {}, e.toString());
+    console.error(e, e.stack ? e.stack : 'no stack');
+    throw e;
+    // return createElement('div', {}, e.toString());
   }
 }
