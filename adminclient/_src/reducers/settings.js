@@ -20,6 +20,7 @@ var appDefaultSettings = {
   adminPath: '/r-admin',
   routerHistory: 'browserHistory',
   hot_reload: false,
+  disableLogger: false,
   includeCoreData: {
     manifest: true,
     navigation: true
@@ -52,7 +53,12 @@ var appDefaultSettings = {
       buttonColor: 'isWhite',
       useGlobalSearch: false,
       useHeaderLogout: false,
-      customButton: false,
+      productHeader: {
+        layout: false,
+        productLinks: []
+      },
+      customButton: {},
+      profileImageStyle: {},
       navLabelStyle: {},
       containerStyle: {},
       userNameStyle: {}
@@ -136,7 +142,7 @@ var defaultUserNavigation = {
 };
 var packageJSON = {
   name: 'adminclient',
-  version: '0.1.0',
+  version: '10.1.1',
   'private': true,
   devDependencies: {
     'animate.css': '^3.5.2',
@@ -155,7 +161,7 @@ var packageJSON = {
     'react-router': '^3.0.0',
     'react-router-redux': '^4.0.7',
     'react-scripts': '0.8.4',
-    recharts: '0.20.5',
+    recharts: '^1.0.0-beta.1',
     redux: '^3.6.0',
     'redux-logger': '^2.7.4',
     'redux-thunk': '^2.1.0',
@@ -185,9 +191,13 @@ var packageJSON = {
     'react-draft-wysiwyg': '^1.7.6',
     'react-file-reader-input': '^1.1.0',
     'react-responsive-carousel': '^3.1.3',
+    'react-slick': '^0.15.4',
     'react-text-mask': '^5.0.2',
+    'semantic-ui-css': '^2.2.12',
+    'semantic-ui-react': '^0.77.1',
     'text-mask-addons': '^3.6.0',
     'validate.js': '^0.11.1',
+    victory: '^0.24.0',
     'whatwg-fetch': '^2.0.3'
   },
   scripts: {

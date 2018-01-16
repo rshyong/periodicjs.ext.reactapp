@@ -130,7 +130,6 @@ var ResponsiveTable = function (_Component) {
 
     var rows = props.rows || [];
     rows = rows.documents ? rows.documents : rows;
-    // console.log({ rows })
     var headers = (!props.headers || !props.headers.length) && rows[0] ? (0, _TableHelpers.getHeadersFromRows)({
       rows: props.rows,
       sortable: props.sortable,
@@ -153,11 +152,12 @@ var ResponsiveTable = function (_Component) {
       headers: headers,
       rows: rows,
       hasPagination: props.hasPagination,
+      simplePagination: props.simplePagination,
       hasHeader: props.hasHeader,
       hasFooter: props.hasFooter,
       limit: props.limit,
       currentPage: props.currentPage,
-      numItems: props.numItems,
+      numItems: props.numItems || rows.length,
       numPages: Math.ceil(props.numItems / props.limit),
       numButtons: props.numButtons,
       isLoading: false,
@@ -552,7 +552,7 @@ var ResponsiveTable = function (_Component) {
               // console.log({ rows });
               if (_this5.props.flattenRowData) {
                 updatedState[data.key] = rows.map(function (row) {
-                  return (0, _flat.flatten)(row, _this5.props.flattenRowDataOptions);
+                  return (0, _assign2.default)({}, row, (0, _flat.flatten)(row, _this5.props.flattenRowDataOptions));
                 });
               }
             } else {
@@ -598,7 +598,19 @@ var ResponsiveTable = function (_Component) {
           value = value.toString();
           returnValue = value.toString();
         }
-        if (header && header.selectedOptionRowHeader) {
+        if (header && header.customCellLayout) {
+          header.customCellLayout.props = (0, _assign2.default)({}, header.customCellLayout.props, { cell: value, row: row });
+          return this.getRenderedComponent(header.customCellLayout);
+        }
+        if (header && header.tagifyArray) {
+          return value.map(function (val, kv) {
+            return _react2.default.createElement(
+              rb.Tag,
+              (0, _extends3.default)({}, header.tagProps, { key: kv }),
+              header.tagifyValue ? val[header.tagifyValue].toString() : val.toString()
+            );
+          });
+        } else if (header && header.selectedOptionRowHeader) {
           return _react2.default.createElement('input', { type: 'radio', checked: options.rowIndex === this.state.selectedRowIndex ? true : false });
         } else if (this.props.useInputRows && header && header.formtype && header.formtype === 'code') {
           var CodeMirrorProps = (0, _assign2.default)({}, {
@@ -649,7 +661,8 @@ var ResponsiveTable = function (_Component) {
           return _react2.default.createElement(
             rb.Input,
             (0, _extends3.default)({
-              value: value
+              value: value,
+              readOnly: header.readOnly ? true : false
             }, header.inputProps, {
               onChange: function onChange(event) {
                 var text = event.target.value;
@@ -861,7 +874,7 @@ var ResponsiveTable = function (_Component) {
           }, this.props.customLayoutStyle) },
         displayRows.map(function (row) {
           var mergedLayout = (0, _assign2.default)({}, _this8.props.customLayout, {
-            props: (0, _assign2.default)({}, _this8.props.customLayout.props, row, {
+            props: (0, _assign2.default)({}, _this8.props.customLayout.props, row, { row: row }, {
               __ra_rt_link: _this8.props.customLayout.link ? _this8.getHeaderLinkURL(_this8.props.customLayout.link, row) : undefined
             })
           });
@@ -967,7 +980,24 @@ var ResponsiveTable = function (_Component) {
           )
         ));
       }
-      var footer = _react2.default.createElement(
+      var footer = this.state.simplePagination ? _react2.default.createElement(
+        rb.Pagination,
+        null,
+        this.state.currentPage < 2 ? _react2.default.createElement(rb.Button, { icon: 'fa fa-angle-left', state: 'isDisabled' }) : _react2.default.createElement(rb.Button, { icon: 'fa fa-angle-left', onClick: function onClick() {
+            return _this8.updateTableData({ pagenum: _this8.state.currentPage - 1 });
+          } }),
+        _react2.default.createElement(
+          'span',
+          { style: { margin: '0 20px' } },
+          'Page ',
+          this.state.currentPage,
+          ' of ',
+          this.state.numPages
+        ),
+        this.state.currentPage >= this.state.numPages ? _react2.default.createElement(rb.Button, { icon: 'fa fa-angle-right', state: 'isDisabled' }) : _react2.default.createElement(rb.Button, { icon: 'fa fa-angle-right', onClick: function onClick() {
+            return _this8.updateTableData({ pagenum: _this8.state.currentPage + 1 });
+          } })
+      ) : _react2.default.createElement(
         rb.Pagination,
         null,
         this.state.currentPage < 2 ? _react2.default.createElement(
@@ -1016,7 +1046,7 @@ var ResponsiveTable = function (_Component) {
       return _react2.default.createElement(
         rb.Container,
         this.props.containerProps,
-        this.props.tableSearch ? _react2.default.createElement(
+        this.props.tableSearch && !this.props.simpleSearchFilter ? _react2.default.createElement(
           rb.Addons,
           this.props.filterAddonProps,
           _react2.default.createElement(rb.Input, (0, _extends3.default)({}, this.props.filterSearchProps, {
@@ -1038,7 +1068,17 @@ var ResponsiveTable = function (_Component) {
             'Search'
           ),
           fbts
-        ) : null,
+        ) : this.props.tableSearch && this.props.simpleSearchFilter ? _react2.default.createElement(rb.Input, (0, _extends3.default)({}, this.props.filterSearchProps, {
+          onChange: function onChange(data) {
+            _this8.searchFunction({ search: data.target.value });
+            _this8.searchInputTextVal = data.target.value; //TODO: this is janky fix it
+          },
+          ref: function ref(input) {
+            _this8.searchTextInput = input;
+          },
+          hasIconRight: true,
+          icon: 'fa fa-search'
+        })) : null,
         this.state.showFilterSearch ? _react2.default.createElement(
           'div',
           (0, _extends3.default)({ className: '__ra_rt_asf' }, this.props.searchFilterContainerProps),
@@ -1453,15 +1493,16 @@ var ResponsiveTable = function (_Component) {
         ) : null,
         _react2.default.createElement(
           'div',
-          { style: (0, _assign2.default)({ overflow: 'hidden', height: '100%' }, this.props.tableWrappingStyle) },
+          { style: (0, _assign2.default)({ overflow: 'hidden', height: '100%', position: 'relative' }, this.props.tableWrappingStyle) },
           this.state.isLoading ? _react2.default.createElement(
             'div',
             { style: {
                 textAlign: 'center',
                 position: 'absolute',
-                height: '80%',
+                height: '100%',
                 width: '100%',
                 opacity: '.9',
+                zIndex: 10,
                 background: 'white',
                 display: 'flex',
                 alignSelf: 'stretch',

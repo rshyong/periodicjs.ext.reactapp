@@ -39,6 +39,7 @@ var _assign2 = _interopRequireDefault(_assign);
 exports.getPropertyAttribute = getPropertyAttribute;
 exports.getFormDatatable = getFormDatatable;
 exports.getFormDatalist = getFormDatalist;
+exports.getFormDropdown = getFormDropdown;
 exports.getFormMaskedInput = getFormMaskedInput;
 exports.getFormTextInputArea = getFormTextInputArea;
 exports.getFormTextArea = getFormTextArea;
@@ -102,6 +103,8 @@ var _reactTextMask = require('react-text-mask');
 
 var _reactTextMask2 = _interopRequireDefault(_reactTextMask);
 
+var _semanticUiReact = require('semantic-ui-react');
+
 var _moment = require('moment');
 
 var _moment2 = _interopRequireDefault(_moment);
@@ -126,9 +129,6 @@ var _FormHelpers = require('./FormHelpers');
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-// import RAEditor from '../RAEditor';
-// import ResponsiveButton from '../ResponsiveButton';
-// import { EditorState, } from 'draft-js';
 function getPropertyAttribute(options) {
   var property = options.property,
       element = options.element;
@@ -150,9 +150,17 @@ function getPropertyAttribute(options) {
     return returnVal;
   }
 }
+// import RAEditor from '../RAEditor';
+// import ResponsiveButton from '../ResponsiveButton';
+// import { EditorState, } from 'draft-js';
+
 
 function getErrorStatus(state, name) {
   return state.formDataErrors && state.formDataErrors[name];
+}
+
+function getValidStatus(state, name) {
+  return state.formDataValid && state.formDataValid[name];
 }
 
 function getFormElementHelp(hasError, state, name) {
@@ -164,17 +172,31 @@ function getFormElementHelp(hasError, state, name) {
 
 function getCustomErrorLabel(hasError, state, formelement) {
   return hasError ? _react2.default.createElement(
-    'div',
-    { style: (0, _assign2.default)({
-        fontSize: 11,
-        color: formelement.errorColor || '#ed6c63'
-      }, formelement.customErrorProps) },
+    'span',
+    { className: '__re-bulma_help __re-bulma_is-danger', style: formelement.customErrorProps },
     state.formDataErrors[formelement.name][0]
   ) : null;
 }
 
-function getCustomErrorIcon(hasError, state, formelement) {
-  return hasError && (formelement.errorIconRight || formelement.errorIconLeft) ? _react2.default.createElement('i', { className: '__re-bulma_fa fa fa-warning' }) : null;
+function getCustomErrorIcon(hasError, isValid, state, formelement) {
+  var iconStyle = (0, _assign2.default)({
+    display: 'inline-block',
+    fontSize: '1rem',
+    height: '24px',
+    lineHeight: '24px',
+    textAlign: 'center',
+    verticalAlign: 'top',
+    width: '24px',
+    color: '#aeb1b5',
+    pointerEvents: 'none',
+    position: 'absolute',
+    top: '5px',
+    zIndex: '4',
+    right: '24px'
+  }, formelement.customIconStyle);
+  var iconVar = hasError ? formelement.errorIcon || 'fa fa-warning' : isValid ? formelement.validIcon || 'fa fa-check' : formelement.initialIcon ? formelement.initialIcon : '';
+
+  return formelement.errorIconRight || formelement.errorIconLeft ? _react2.default.createElement('i', { className: '__re-bulma_fa ' + iconVar, style: iconStyle }) : null;
 }
 
 function valueChangeHandler(formElement) {
@@ -185,6 +207,10 @@ function valueChangeHandler(formElement) {
     // console.debug({ text, formElement, });
     var updatedStateProp = {};
     updatedStateProp[formElement.name] = text;
+    if (formElement.onChangeFilter) {
+      var onChangeFunc = getFunctionFromProps.call(_this, { propFunc: formElement.onChangeFilter });
+      updatedStateProp = onChangeFunc.call(_this, (0, _assign2.default)({}, _this.state, updatedStateProp), updatedStateProp);
+    }
     _this.setState(updatedStateProp, function () {
       if (formElement.validateOnChange) {
         _this.validateFormElement({ formElement: formElement });
@@ -209,7 +235,7 @@ function getInitialValue(formElement, state) {
   // console.debug({formElement, state})
   var formElementValue = formElement.value;
 
-  if (state[formElement.name] === null || formElementValue === null || formElementValue === 'null') {
+  if (!formElement.showNullValue && (state[formElement.name] === null || formElementValue === null || formElementValue === 'null')) {
     return '';
   } else {
     var returnVal = typeof state[formElement.name] !== 'undefined' ? state[formElement.name] : formElementValue;
@@ -264,6 +290,17 @@ function getPassablePropsKeyEvents(passableProps, formElement) {
       customonBlur(e, formElement);
     };
   }
+  if (formElement.onFocus) {
+    var customFocus = function customFocus() {};
+    if (typeof formElement.onFocus === 'string' && formElement.onFocus.indexOf('func:this.props') !== -1) {
+      customFocus = this.props[formElement.onFocus.replace('func:this.props.', '')];
+    } else if (typeof formElement.onFocus === 'string' && formElement.onFocus.indexOf('func:window') !== -1 && typeof window[formElement.onFocus.replace('func:window.', '')] === 'function') {
+      customFocus = window[formElement.onFocus.replace('func:window.', '')].bind(this);
+    }
+    passableProps.onFocus = function (e) {
+      customFocus(e, formElement);
+    };
+  }
   if (formElement.keyUp) {
     var customkeyUp = function customkeyUp() {};
     if (typeof formElement.keyUp === 'string' && formElement.keyUp.indexOf('func:this.props') !== -1) {
@@ -311,7 +348,6 @@ function getFormDatatable(options) {
     return row.map(function (rowkey) {
       var selectOptions = _this3.state.__formOptions && _this3.state.__formOptions[rowkey] ? _this3.state.__formOptions[rowkey] : [];
       // console.log({ selectOptions });
-
       return {
         label: (0, _capitalize2.default)(rowkey),
         sortid: rowkey,
@@ -340,6 +376,12 @@ function getFormDatatable(options) {
   }) : tableHeaders.concat({
     label: '',
     formtype: false
+  });
+  tableHeaders = tableHeaders.map(function (header) {
+    if (header.formtype === 'select' && !header.formoptions) {
+      header.formoptions = header.sortid && _this3.state.__formOptions && _this3.state.__formOptions[header.sortid] ? _this3.state.__formOptions[header.sortid] : [];
+    }
+    return header;
   });
   var passedProps = (0, _assign2.default)({}, this.props, {
     selectEntireRow: formElement.selectEntireRow,
@@ -435,7 +477,6 @@ function getFormDatalist(options) {
     getFormLabel(formElement),
     _react2.default.createElement(_ResponsiveDatalist2.default, (0, _extends3.default)({}, passedProps, {
       onChange: function onChange(newvalue) {
-        // console.debug({ newvalue });
         var updatedStateProp = {};
         updatedStateProp[formElement.name] = newvalue;
         _this4.setState(updatedStateProp);
@@ -444,8 +485,69 @@ function getFormDatalist(options) {
   );
 }
 
-function getFormMaskedInput(options) {
+function getFormDropdown(options) {
   var _this5 = this;
+
+  var formElement = options.formElement,
+      i = options.i;
+  // let initialValue = getInitialValue(formElement, Object.assign({}, this.state, unflatten(this.state)));
+
+  var hasError = getErrorStatus(this.state, formElement.name);
+  var hasValue = formElement.name && this.state[formElement.name] ? true : false;
+  var isValid = getValidStatus(this.state, formElement.name);
+  var wrapperProps = (0, _assign2.default)({
+    className: '__re-bulma_control'
+  }, formElement.wrapperProps);
+
+  var passedProps = formElement.passProps;
+  var getPassablePropkeyevents = getPassablePropsKeyEvents.bind(this);
+  passedProps = getPassablePropkeyevents(passedProps, formElement);
+
+  // console.debug({formElement,initialValue, },'this.state',this.state);
+  // console.debug({ passedProps });
+  var dropdowndata = [];
+  var displayField = formElement.passProps.displayField ? formElement.passProps.displayField : 'label';
+  var valueField = formElement.passProps.valueField ? formElement.passProps.valueField : 'value';
+
+  if (this.props.__formOptions && this.props.__formOptions[formElement.name]) {
+    dropdowndata = this.props.__formOptions[formElement.name];
+    dropdowndata = dropdowndata.map(function (option) {
+      return { text: option[displayField], value: option[valueField] };
+    });
+  } else {
+    dropdowndata = formElement.options || [];
+    dropdowndata = dropdowndata.map(function (option) {
+      return { text: option[displayField], value: option[valueField] };
+    });
+  }
+  passedProps.options = dropdowndata;
+
+  return _react2.default.createElement(
+    _FormItem2.default,
+    (0, _extends3.default)({ key: i }, formElement.layoutProps, { initialIcon: formElement.initialIcon, isValid: isValid, hasError: hasError, hasValue: hasValue }),
+    getFormLabel(formElement),
+    _react2.default.createElement(
+      'div',
+      wrapperProps,
+      _react2.default.createElement(_semanticUiReact.Dropdown, (0, _extends3.default)({}, passedProps, {
+        onChange: function onChange(event, newvalue) {
+          // console.log({ newvalue});
+          var updatedStateProp = {};
+          updatedStateProp[formElement.name] = newvalue.value;
+          _this5.setState(updatedStateProp);
+        },
+        onSubmit: function onSubmit() {
+          return;
+        }
+      })),
+      getCustomErrorIcon(hasError, isValid, this.state, formElement),
+      getCustomErrorLabel(hasError, this.state, formElement)
+    )
+  );
+}
+
+function getFormMaskedInput(options) {
+  var _this6 = this;
 
   var formElement = options.formElement,
       i = options.i,
@@ -456,6 +558,7 @@ function getFormMaskedInput(options) {
   var fileClassname = '__reactapp_file_' + formElement.name;
   var hasError = getErrorStatus(this.state, formElement.name);
   var hasValue = formElement.name && this.state[formElement.name] ? true : false;
+  var isValid = getValidStatus(this.state, formElement.name);
   var passableProps = (0, _assign2.default)({
     type: 'text',
     className: '__re-bulma_input'
@@ -474,7 +577,7 @@ function getFormMaskedInput(options) {
         document.querySelector('.' + fileClassname + ' input').setAttribute('multiple', true);
       }
       updatedStateProp[formElement.name] = passableProps.maxLength ? text.substring(0, passableProps.maxLength) : text;
-      _this5.setState(updatedStateProp);
+      _this6.setState(updatedStateProp);
     };
   }
   passableProps = getPassablePropkeyevents(passableProps, formElement);
@@ -488,22 +591,48 @@ function getFormMaskedInput(options) {
   formElement.customErrorProps = formElement.customErrorProps ? (0, _assign2.default)({}, { marginTop: '6px' }, formElement.customErrorProps) : { marginTop: '6px' };
 
   var mask = [];
-  if (formElement.createNumberMask && passableProps.mask.indexOf('func:window') !== -1 && typeof window[passableProps.mask.replace('func:window.', '')] === 'function') {
+  function maskFunction(maskProp) {
+    return function () {
+      // return [ '(', /[1-9]/, /\d/, /\d/, ')', '\u2000', /\d/, /\d/, /\d/, '-', /\d/, /\d/, /\d/, /\d/ ];
+      if (Array.isArray(maskProp)) {
+        var maskArray = maskProp.map(function (maskItem) {
+          if (maskItem.charAt(0) === '/' && maskItem.charAt(maskItem.length - 1) === '/') {
+            if (maskItem.charAt(1) === '[') {
+              return new RegExp(maskItem.slice(1, maskItem.length - 1));
+            } else {
+              return new RegExp('\\' + maskItem.slice(1, maskItem.length - 1));
+            }
+          } else {
+            return maskItem;
+          }
+        });
+        return maskArray;
+      } else {
+        return maskProp;
+      }
+    };
+  }
+  if (formElement.createNumberMask && typeof passableProps.mask === 'string' && passableProps.mask.indexOf('func:window') !== -1 && typeof window[passableProps.mask.replace('func:window.', '')] === 'function') {
     var numberMaskConfig = (0, _typeof3.default)(window[passableProps.mask.replace('func:window.', '')].call(this, formElement)) === 'object' ? window[passableProps.mask.replace('func:window.', '')].call(this, formElement) : {};
     mask = (0, _createNumberMask2.default)(numberMaskConfig);
-  } else if (passableProps.mask.indexOf('func:window') !== -1 && typeof window[passableProps.mask.replace('func:window.', '')] === 'function') {
+  } else if (typeof passableProps.mask === 'string' && passableProps.mask.indexOf('func:window') !== -1 && typeof window[passableProps.mask.replace('func:window.', '')] === 'function') {
     mask = window[passableProps.mask.replace('func:window.', '')].bind(this, formElement);
+  } else if (formElement.createNumberMask) {
+    // console.log('passableProps.numberMask',passableProps.numberMask)
+    mask = (0, _createNumberMask2.default)(maskFunction(passableProps.mask));
+  } else if (passableProps.mask) {
+    mask = maskFunction(passableProps.mask);
   }
-
+  // console.log({mask})
   var wrapperProps = (0, _assign2.default)({
     className: '__re-bulma_control'
   }, formElement.wrapperProps);
 
-  wrapperProps.className = hasError && (formElement.errorIconRight || formElement.errorIconLeft) ? formElement.errorIconRight ? wrapperProps.className + ' __re-bulma_has-icon __re-bulma_has-icon-right' : wrapperProps.className + ' __re-bulma_has-icon __re-bulma_has-icon-left' : wrapperProps.className;
+  wrapperProps.className = (hasError || isValid || formElement.initialIcon) && (formElement.errorIconRight || formElement.errorIconLeft) ? formElement.errorIconRight ? wrapperProps.className + ' __re-bulma_has-icon __re-bulma_has-icon-right' : wrapperProps.className + ' __re-bulma_has-icon __re-bulma_has-icon-left' : wrapperProps.className;
 
   return _react2.default.createElement(
     _FormItem2.default,
-    (0, _extends3.default)({ key: i }, formElement.layoutProps, { hasError: hasError, hasValue: hasValue }),
+    (0, _extends3.default)({ key: i }, formElement.layoutProps, { initialIcon: formElement.initialIcon, isValid: isValid, hasError: hasError, hasValue: hasValue }),
     getFormLabel(formElement),
     _react2.default.createElement(
       'span',
@@ -515,14 +644,14 @@ function getFormMaskedInput(options) {
         onChange: onChange,
         placeholder: formElement.placeholder,
         value: initialValue })),
-      getCustomErrorIcon(hasError, this.state, formElement),
+      getCustomErrorIcon(hasError, isValid, this.state, formElement),
       getCustomErrorLabel(hasError, this.state, formElement)
     )
   );
 }
 
 function getFormTextInputArea(options) {
-  var _this6 = this;
+  var _this7 = this;
 
   var formElement = options.formElement,
       i = options.i,
@@ -532,6 +661,7 @@ function getFormTextInputArea(options) {
   var getPassablePropkeyevents = getPassablePropsKeyEvents.bind(this);
   var fileClassname = '__reactapp_file_' + formElement.name;
   var hasError = getErrorStatus(this.state, formElement.name);
+  var isValid = getValidStatus(this.state, formElement.name);
   var hasValue = formElement.name && this.state[formElement.name] ? true : false;
   var passableProps = (0, _assign2.default)({
     type: formElement.type || 'text'
@@ -553,11 +683,15 @@ function getFormTextInputArea(options) {
       }
 
       if (passableProps && passableProps.type === 'file') {
-        updatedStateProp.formDataFiles = (0, _assign2.default)({}, _this6.state.formDataFiles, (0, _defineProperty3.default)({}, formElement.name, document.querySelector('.' + fileClassname + ' input')));
+        updatedStateProp.formDataFiles = (0, _assign2.default)({}, _this7.state.formDataFiles, (0, _defineProperty3.default)({}, formElement.name, document.querySelector('.' + fileClassname + ' input')));
       } else {
         updatedStateProp[formElement.name] = passableProps.maxLength ? text.substring(0, passableProps.maxLength) : text;
       }
-      _this6.setState(updatedStateProp);
+      if (formElement.onChangeFilter) {
+        var onChangeFunc = getFunctionFromProps.call(_this7, { propFunc: formElement.onChangeFilter });
+        updatedStateProp = onChangeFunc.call(_this7, (0, _assign2.default)({}, _this7.state, updatedStateProp), updatedStateProp);
+      }
+      _this7.setState(updatedStateProp);
     };
   }
   passableProps = getPassablePropkeyevents(passableProps, formElement);
@@ -571,12 +705,12 @@ function getFormTextInputArea(options) {
   }
   return _react2.default.createElement(
     _FormItem2.default,
-    (0, _extends3.default)({ key: i }, formElement.layoutProps, { hasError: hasError, hasValue: hasValue }),
+    (0, _extends3.default)({ key: i }, formElement.layoutProps, { initialIcon: formElement.initialIcon, isValid: isValid, hasError: hasError, hasValue: hasValue }),
     getFormLabel(formElement),
     _react2.default.createElement(_reBulma.Input, (0, _extends3.default)({}, passableProps, {
       help: getFormElementHelp(hasError, this.state, formElement.name),
       color: hasError ? 'isDanger' : undefined,
-      icon: hasError ? formElement.errorIcon || 'fa fa-warning' : undefined,
+      icon: hasError ? formElement.errorIcon || 'fa fa-warning' : isValid ? formElement.validIcon || 'fa fa-check' : formElement.initialIcon ? formElement.initialIcon : undefined,
       hasIconRight: formElement.errorIconRight,
       onChange: onChange,
       placeholder: formElement.placeholder,
@@ -591,6 +725,7 @@ function getFormTextArea(options) {
 
   var initialValue = getInitialValue(formElement, this.state); //formElement.value || this.state[ formElement.name ] || getPropertyAttribute({ element:formElement, property:this.state, });
   var hasError = getErrorStatus(this.state, formElement.name);
+  var isValid = getValidStatus(this.state, formElement.name);
   var hasValue = formElement.name && this.state[formElement.name] ? true : false;
   var passableProps = (0, _assign2.default)({}, formElement.passProps);
   var getPassablePropkeyevents = getPassablePropsKeyEvents.bind(this);
@@ -609,14 +744,14 @@ function getFormTextArea(options) {
 
   return _react2.default.createElement(
     _FormItem2.default,
-    (0, _extends3.default)({ key: i }, formElement.layoutProps, { hasError: hasError, hasValue: hasValue }),
+    (0, _extends3.default)({ key: i }, formElement.layoutProps, { initialIcon: formElement.initialIcon, isValid: isValid, hasError: hasError, hasValue: hasValue }),
     getFormLabel(formElement),
     _react2.default.createElement(_reBulma.Textarea, (0, _extends3.default)({}, passableProps, {
       onChange: function onChange(event) {
         return _onChange()(event);
       },
       help: getFormElementHelp(hasError, this.state, formElement.name),
-      icon: hasError ? formElement.errorIcon || 'fa fa-warning' : undefined,
+      icon: hasError ? formElement.errorIcon || 'fa fa-warning' : isValid ? formElement.validIcon || 'fa fa-check' : formElement.initialIcon ? formElement.initialIcon : undefined,
       color: hasError ? 'isDanger' : undefined,
       hasIconRight: formElement.errorIconRight,
       placeholder: formElement.placeholder || formElement.label,
@@ -631,6 +766,7 @@ function getFormSelect(options) {
 
   var initialValue = getInitialValue(formElement, this.state); //formElement.value || this.state[ formElement.name ] || getPropertyAttribute({ element:formElement, property:this.state, });
   var hasError = getErrorStatus(this.state, formElement.name);
+  var isValid = getValidStatus(this.state, formElement.name);
   var hasValue = formElement.name && this.state[formElement.name] ? true : false;
   var selectOptions = this.state.__formOptions && this.state.__formOptions[formElement.name] ? this.state.__formOptions[formElement.name] : formElement.options || [];
 
@@ -655,32 +791,38 @@ function getFormSelect(options) {
 
   return _react2.default.createElement(
     _FormItem2.default,
-    (0, _extends3.default)({ key: i }, formElement.layoutProps, { hasError: hasError, hasValue: hasValue }),
+    (0, _extends3.default)({ key: i }, formElement.layoutProps, { initialIcon: formElement.initialIcon, isValid: isValid, hasError: hasError, hasValue: hasValue }),
     getFormLabel(formElement),
     _react2.default.createElement(
-      _reBulma.Select,
-      (0, _extends3.default)({}, formElement.passProps, {
-        help: getFormElementHelp(hasError, this.state, formElement.name),
-        color: hasError ? 'isDanger' : undefined,
-        onChange: function onChange(event) {
-          _onChange2()(event);
-          if (customCallbackfunction) customCallbackfunction(event);
-        },
-        placeholder: formElement.placeholder || formElement.label,
-        value: this.state[formElement.name] || initialValue }),
-      selectOptions.map(function (opt, k) {
-        return _react2.default.createElement(
-          'option',
-          { key: k, disabled: opt.disabled, value: opt.value },
-          opt.label || opt.value
-        );
-      })
+      'span',
+      { className: '__re-bulma_control', style: { position: 'relative', display: 'block' } },
+      _react2.default.createElement(
+        _reBulma.Select,
+        (0, _extends3.default)({}, formElement.passProps, {
+          style: (0, _assign2.default)({}, { flex: 'inherit', marginBottom: 0 }, formElement.passProps && formElement.passProps.style ? formElement.passProps.style : {}),
+          help: getFormElementHelp(hasError, this.state, formElement.name),
+          color: hasError ? 'isDanger' : undefined,
+          onChange: function onChange(event) {
+            _onChange2()(event);
+            if (customCallbackfunction) customCallbackfunction(event);
+          },
+          placeholder: formElement.placeholder || formElement.label,
+          value: this.state[formElement.name] || initialValue }),
+        selectOptions.map(function (opt, k) {
+          return _react2.default.createElement(
+            'option',
+            { key: k, disabled: opt.disabled, value: opt.value },
+            opt.label || opt.value
+          );
+        })
+      ),
+      !formElement.errorIconLeft ? getCustomErrorIcon(hasError, isValid, this.state, formElement) : null
     )
   );
 }
 
 function getFormCheckbox(options) {
-  var _this7 = this;
+  var _this8 = this;
 
   var formElement = options.formElement,
       i = options.i,
@@ -698,14 +840,18 @@ function getFormCheckbox(options) {
       // console.debug('before', { updatedStateProp, formElement, }, event.target);
       if (formElement.type === 'radio') {
         // event.target.value = 'on';
-        updatedStateProp[_this7.state[formElement.formdata_name] || formElement.name] = _this7.state[formElement.formdata_value] || formElement.value || 'on';
+        updatedStateProp[_this8.state[formElement.formdata_name] || formElement.name] = _this8.state[formElement.formdata_value] || formElement.value || 'on';
       } else {
-        updatedStateProp[_this7.state[formElement.formdata_name] || formElement.name] = _this7.state[_this7.state[formElement.formdata_name] || formElement.name] ? 0 : 'on';
+        updatedStateProp[_this8.state[formElement.formdata_name] || formElement.name] = _this8.state[_this8.state[formElement.formdata_name] || formElement.name] ? 0 : 'on';
       }
       // console.debug('after', { updatedStateProp, formElement, }, event.target);
-      _this7.setState(updatedStateProp, function () {
+      if (formElement.onChangeFilter) {
+        var onChangeFunc = getFunctionFromProps.call(_this8, { propFunc: formElement.onChangeFilter });
+        updatedStateProp = onChangeFunc.call(_this8, (0, _assign2.default)({}, _this8.state, updatedStateProp), updatedStateProp);
+      }
+      _this8.setState(updatedStateProp, function () {
         if (formElement.validateOnChange) {
-          _this7.validateFormElement({ formElement: formElement });
+          _this8.validateFormElement({ formElement: formElement });
         }
       });
     };
@@ -731,7 +877,7 @@ function getFormCheckbox(options) {
 }
 
 function getFormSwitch(options) {
-  var _this8 = this;
+  var _this9 = this;
 
   var formElement = options.formElement,
       i = options.i,
@@ -747,16 +893,20 @@ function getFormSwitch(options) {
       // let text = event.target.value;
       var updatedStateProp = {};
       // console.debug('before', { updatedStateProp, formElement, }, event.target);
-      updatedStateProp[_this8.state[formElement.formdata_name] || formElement.name] = _this8.state[_this8.state[formElement.formdata_name] || formElement.name] ? 0 : 'on';
+      updatedStateProp[_this9.state[formElement.formdata_name] || formElement.name] = _this9.state[_this9.state[formElement.formdata_name] || formElement.name] ? 0 : 'on';
 
       // console.debug('after', { updatedStateProp, formElement, }, event.target);
       if (formElement.onChange) {
-        var onChangeFunc = getFunctionFromProps.call(_this8, { propFunc: formElement.onChange });
-        onChangeFunc.call(_this8, (0, _assign2.default)({}, _this8.state, updatedStateProp), updatedStateProp);
+        var onChangeFunc = getFunctionFromProps.call(_this9, { propFunc: formElement.onChange });
+        onChangeFunc.call(_this9, (0, _assign2.default)({}, _this9.state, updatedStateProp), updatedStateProp);
       }
-      _this8.setState(updatedStateProp, function () {
+      if (formElement.onChangeFilter) {
+        var _onChangeFunc = getFunctionFromProps.call(_this9, { propFunc: formElement.onChangeFilter });
+        updatedStateProp = _onChangeFunc.call(_this9, (0, _assign2.default)({}, _this9.state, updatedStateProp), updatedStateProp);
+      }
+      _this9.setState(updatedStateProp, function () {
         if (formElement.validateOnChange) {
-          _this8.validateFormElement({ formElement: formElement });
+          _this9.validateFormElement({ formElement: formElement });
         }
       });
     };
@@ -789,7 +939,7 @@ function getFormSwitch(options) {
 }
 
 function getRawInput(options) {
-  var _this9 = this;
+  var _this10 = this;
 
   var formElement = options.formElement,
       i = options.i,
@@ -813,9 +963,13 @@ function getRawInput(options) {
     onValueChange = function onValueChange() /*event*/{
       // let text = event.target.value;
       var updatedStateProp = {};
-      updatedStateProp[formElement.name] = _this9.state[formElement.name] ? false : 'on';
+      updatedStateProp[formElement.name] = _this10.state[formElement.name] ? false : 'on';
       // console.log({ updatedStateProp });
-      _this9.setState(updatedStateProp);
+      if (formElement.onChangeFilter) {
+        var onChangeFunc = getFunctionFromProps.call(_this10, { propFunc: formElement.onChangeFilter });
+        updatedStateProp = onChangeFunc.call(_this10, (0, _assign2.default)({}, _this10.state, updatedStateProp), updatedStateProp);
+      }
+      _this10.setState(updatedStateProp);
     };
   }
 
@@ -837,7 +991,7 @@ function getRawInput(options) {
 }
 
 function getSliderInput(options) {
-  var _this10 = this;
+  var _this11 = this;
 
   var formElement = options.formElement,
       i = options.i,
@@ -884,7 +1038,11 @@ function getSliderInput(options) {
       var updatedStateProp = {};
       updatedStateProp[formElement.name] = val;
       // console.log({ updatedStateProp });
-      _this10.setState(updatedStateProp);
+      if (formElement.onChangeFilter) {
+        var onChangeFunc = getFunctionFromProps.call(_this11, { propFunc: formElement.onChangeFilter });
+        updatedStateProp = onChangeFunc.call(_this11, (0, _assign2.default)({}, _this11.state, updatedStateProp), updatedStateProp);
+      }
+      _this11.setState(updatedStateProp);
       customCallbackfunction(val);
     };
   }
@@ -1021,6 +1179,10 @@ function getFormCode(options) {
         newvalue = formElement.stringify ? JSON.parse(newvalue) : newvalue;
         var updatedStateProp = {};
         updatedStateProp[formElement.name] = newvalue;
+        if (formElement.onChangeFilter) {
+          var onChangeFunc = getFunctionFromProps.call(this, { propFunc: formElement.onChangeFilter });
+          updatedStateProp = onChangeFunc.call(this, (0, _assign2.default)({}, this.state, updatedStateProp), updatedStateProp);
+        }
         this.setState(updatedStateProp);
       }.bind(this) : onValueChange
     }, formElement.codeMirrorProps),
@@ -1046,7 +1208,7 @@ function getFormCode(options) {
 }
 
 function getFormEditor(options) {
-  var _this11 = this;
+  var _this12 = this;
 
   var formElement = options.formElement,
       i = options.i,
@@ -1058,7 +1220,11 @@ function getFormEditor(options) {
       // console.debug({ newvalue, });
       var updatedStateProp = {};
       updatedStateProp[formElement.name] = newvalue.target.value;
-      _this11.setState(updatedStateProp);
+      if (formElement.onChangeFilter) {
+        var onChangeFunc = getFunctionFromProps.call(_this12, { propFunc: formElement.onChangeFilter });
+        updatedStateProp = onChangeFunc.call(_this12, (0, _assign2.default)({}, _this12.state, updatedStateProp), updatedStateProp);
+      }
+      _this12.setState(updatedStateProp);
     };
   }
   // console.debug({ initialVal });
@@ -1094,7 +1260,7 @@ function getFormEditor(options) {
 }
 
 function getFormSubmit(options) {
-  var _this12 = this;
+  var _this13 = this;
 
   var formElement = options.formElement,
       i = options.i;
@@ -1112,15 +1278,15 @@ function getFormSubmit(options) {
       _reBulma.Button,
       (0, _extends3.default)({}, passableProps, {
         onClick: function onClick() {
-          var validated_formdata = _FormHelpers.validateForm.call(_this12, { formdata: _this12.state, validationErrors: {} });
+          var validated_formdata = _FormHelpers.validateForm.call(_this13, { formdata: _this13.state, validationErrors: {} });
           var updateStateData = {
             formDataErrors: validated_formdata.validationErrors
           };
-          if (_this12.props.sendSubmitButtonVal) {
+          if (_this13.props.sendSubmitButtonVal) {
             updateStateData['submitButtonVal'] = formElement.value;
           }
-          _this12.setState(updateStateData, function () {
-            formElement.confirmModal && (0, _keys2.default)(_this12.state.formDataErrors).length < 1 ? _this12.props.createModal((0, _assign2.default)({
+          _this13.setState(updateStateData, function () {
+            formElement.confirmModal && (0, _keys2.default)(_this13.state.formDataErrors).length < 1 ? _this13.props.createModal((0, _assign2.default)({
               title: 'Please Confirm',
               text: {
                 component: 'div',
@@ -1153,8 +1319,8 @@ function getFormSubmit(options) {
                         color: 'isPrimary'
                       },
                       onClick: function onClick() {
-                        _this12.props.hideModal('last');
-                        _this12.submitForm.call(_this12);
+                        _this13.props.hideModal('last');
+                        _this13.submitForm.call(_this13);
                       },
                       onclickProps: 'last'
                     }, formElement.confirmModal.yesButtonProps),
@@ -1174,7 +1340,7 @@ function getFormSubmit(options) {
                     children: formElement.confirmModal.noButtonText || 'No'
                   }]
                 }]
-              } }, formElement.confirmModal)) : _this12.submitForm.call(_this12);
+              } }, formElement.confirmModal)) : _this13.submitForm.call(_this13);
           });
         } }),
       formElement.value

@@ -30,6 +30,7 @@ var AppConfigSettings = {
   adminPath: '/r-admin',
   routerHistory: 'browserHistory',
   hot_reload: false,
+  disableLogger: false,
   includeCoreData: {
     manifest: true,
     navigation: true
@@ -62,7 +63,12 @@ var AppConfigSettings = {
       buttonColor: 'isWhite',
       useGlobalSearch: false,
       useHeaderLogout: false,
-      customButton: false,
+      productHeader: {
+        layout: false,
+        productLinks: []
+      },
+      customButton: {},
+      profileImageStyle: {},
       navLabelStyle: {},
       containerStyle: {},
       userNameStyle: {}
@@ -107,7 +113,16 @@ var AppConfigSettings = {
   }
 }; // import promise from 'redux-promise';
 
-var logger = (0, _reduxLogger2.default)();
+var windowState = typeof window !== 'undefined' && window.__padmin ? window.__padmin : {};
+var disableLogger = function disableLogger(store) {
+  return function (next) {
+    return function (action) {
+      // console .log('dispatching: ', action,{store});
+      return next(action);
+    };
+  };
+};
+var logger = windowState.disableLogger ? disableLogger : (0, _reduxLogger2.default)();
 // const logger = (store) => (next) => (action) => {
 //   console.log('dispatching: ', action,{store});
 //   return next(action);

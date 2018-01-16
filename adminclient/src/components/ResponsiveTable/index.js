@@ -30,7 +30,6 @@ class ResponsiveTable extends Component {
     // console.debug('this.props.getState()',this.props.getState());
     let rows = props.rows || [];
     rows = (rows.documents) ? rows.documents : rows;
-    // console.log({ rows })
     let headers = ((!props.headers || !props.headers.length) && rows[0]) ?
       getHeadersFromRows({
         rows: props.rows,
@@ -53,11 +52,12 @@ class ResponsiveTable extends Component {
       headers: headers,
       rows: rows,
       hasPagination: props.hasPagination,
+      simplePagination: props.simplePagination,
       hasHeader: props.hasHeader,
       hasFooter: props.hasFooter,
       limit: props.limit,
       currentPage: props.currentPage,
-      numItems: props.numItems,
+      numItems: props.numItems || rows.length,
       numPages: Math.ceil(props.numItems / props.limit),
       numButtons: props.numButtons,
       isLoading: false,
@@ -419,7 +419,7 @@ class ResponsiveTable extends Component {
               rows = (rows.documents) ? rows.documents : rows;
               // console.log({ rows });
               if (this.props.flattenRowData) {
-                updatedState[ data.key ] = rows.map(row => flatten(row, this.props.flattenRowDataOptions));
+                updatedState[ data.key ] = rows.map(row => Object.assign({},row,flatten(row, this.props.flattenRowDataOptions)));
               }
             } else {
               // if (data.key === 'numPages') {
@@ -461,7 +461,17 @@ class ResponsiveTable extends Component {
         value = value.toString();
         returnValue = value.toString();
       }
-      if (header && header.selectedOptionRowHeader) {
+      if (header && header.customCellLayout) {
+        header.customCellLayout.props = Object.assign({}, header.customCellLayout.props, {cell:value,row});
+        return this.getRenderedComponent(header.customCellLayout);
+      }
+      if (header && header.tagifyArray) {
+        return value.map((val, kv) => (
+          <rb.Tag {...header.tagProps} key={kv}>{
+            (header.tagifyValue) ? val[ header.tagifyValue ].toString() : val.toString()}
+          </rb.Tag>))
+      }
+      else if (header && header.selectedOptionRowHeader) {
         return <input type="radio" checked={(options.rowIndex===this.state.selectedRowIndex)?true:false} />;
       } else if (this.props.useInputRows && header && header.formtype && header.formtype==='code') {
         let CodeMirrorProps = Object.assign({}, {
@@ -511,6 +521,7 @@ class ResponsiveTable extends Component {
       } else if (this.props.useInputRows && header && header.formtype && header.formtype==='text') {
         return <rb.Input
           value={value}
+          readOnly={header.readOnly? true: false}
           {...header.inputProps}
           onChange={(event) => {
             let text = event.target.value;
@@ -707,6 +718,7 @@ class ResponsiveTable extends Component {
           props: Object.assign({},
             this.props.customLayout.props,
             row,
+            {row},
             {
               __ra_rt_link: (this.props.customLayout.link) ? this.getHeaderLinkURL(this.props.customLayout.link, row) : undefined,
             }),
@@ -779,7 +791,21 @@ class ResponsiveTable extends Component {
         </li>
       ));
     }
-    const footer = (
+    const footer = (this.state.simplePagination)
+      ? (
+        <rb.Pagination>
+          {(this.state.currentPage < 2)
+          ? (<rb.Button icon="fa fa-angle-left" state="isDisabled"></rb.Button>)
+            : (<rb.Button icon="fa fa-angle-left" onClick={() => this.updateTableData({ pagenum: (this.state.currentPage - 1), })}></rb.Button>)}  
+          
+          <span style={{margin: '0 20px'}}>Page {this.state.currentPage} of {this.state.numPages}</span>
+          
+          {(this.state.currentPage >= this.state.numPages)
+          ? (<rb.Button icon="fa fa-angle-right" state="isDisabled"></rb.Button>)
+          : (<rb.Button icon="fa fa-angle-right" onClick={()=>this.updateTableData({ pagenum: (this.state.currentPage+1), })}></rb.Button>)}  
+        </rb.Pagination>
+      )
+      : (
       <rb.Pagination>
         {(this.state.currentPage < 2)
           ? (<rb.Button state="isDisabled"> Previous </rb.Button>)
@@ -809,7 +835,7 @@ class ResponsiveTable extends Component {
     return (
       <rb.Container {...this.props.containerProps}>
         
-        {(this.props.tableSearch)
+        {(this.props.tableSearch && !this.props.simpleSearchFilter)
           ? (<rb.Addons
               {...this.props.filterAddonProps}
             >
@@ -829,7 +855,21 @@ class ResponsiveTable extends Component {
               >Search</rb.Button>
               {fbts}
             </rb.Addons>)
-          : null}
+          : (this.props.tableSearch && this.props.simpleSearchFilter)
+            ? (
+              <rb.Input {...this.props.filterSearchProps}
+                onChange={(data) => {
+                  this.searchFunction({ search: data.target.value, });
+                  this.searchInputTextVal = data.target.value;  //TODO: this is janky fix it
+                }}
+                ref={(input) => {
+                  this.searchTextInput = input;
+                }}
+                hasIconRight
+                icon="fa fa-search"
+              />
+            )
+            : null }
         {(this.state.showFilterSearch)
           ? <div className="__ra_rt_asf" {...this.props.searchFilterContainerProps}>
             <rb.Message header="Advanced Search Filters" > 
@@ -1053,14 +1093,15 @@ class ResponsiveTable extends Component {
             </rb.Message>
           </div>
           : null}
-        <div style={Object.assign({ overflow:'hidden', height:'100%', },this.props.tableWrappingStyle)}>
+        <div style={Object.assign({ overflow:'hidden', height:'100%', position: 'relative' },this.props.tableWrappingStyle)}>
           {(this.state.isLoading)
             ? (<div style={{
               textAlign: 'center',
               position: 'absolute',
-              height: '80%',
+              height: '100%',
               width: '100%',
               opacity: '.9',
+              zIndex: 10,
               background: 'white',
               display: 'flex',
               alignSelf: 'stretch',

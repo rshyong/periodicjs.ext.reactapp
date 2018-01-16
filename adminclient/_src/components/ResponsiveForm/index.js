@@ -94,6 +94,7 @@ var propTypes = {
   validations: _react.PropTypes.array,
   hiddenFields: _react.PropTypes.array,
   footergroups: _react.PropTypes.array,
+  onlyUpdateStateOnSubmit: _react.PropTypes.bool,
   formgroups: _react.PropTypes.oneOfType([_react.PropTypes.bool, _react.PropTypes.object])
 };
 
@@ -111,7 +112,8 @@ var defaultProps = {
   useLoadingButtons: false,
   includeFormDataOnLayout: false,
   onSubmit: 'func:this.props.debug',
-  formgroups: []
+  formgroups: [],
+  updateStateOnSubmit: false
 };
 
 function getFunctionFromProps(options) {
@@ -168,6 +170,7 @@ var ResponsiveForm = function (_Component) {
     _this.getFormCode = _FormElements.getFormCode.bind(_this);
     _this.getFormTextInputArea = _FormElements.getFormTextInputArea.bind(_this);
     _this.getFormMaskedInput = _FormElements.getFormMaskedInput.bind(_this);
+    _this.getFormDropdown = _FormElements.getFormDropdown.bind(_this);
     _this.getFormTextArea = _FormElements.getFormTextArea.bind(_this);
     _this.getFormCheckbox = _FormElements.getFormCheckbox.bind(_this);
     _this.getCardFooterItem = _FormElements.getCardFooterItem.bind(_this);
@@ -182,10 +185,24 @@ var ResponsiveForm = function (_Component) {
     _this.getFormGroup = _FormElements.getFormGroup.bind(_this);
     _this.getImage = _FormElements.getImage.bind(_this);
     _this.validateFormElement = _FormHelpers.validateFormElement.bind(_this);
+
+    _this.staticLayouts = _this.props.staticLayouts ? (0, _keys2.default)(_this.props.staticLayouts).reduce(function (result, layout) {
+      result[layout] = _this.getRenderedComponent(_this.props.staticLayouts[layout], _this.state);
+      return result;
+    }, {}) : {};
     return _this;
   }
 
   (0, _createClass3.default)(ResponsiveForm, [{
+    key: 'shouldComponentUpdate',
+    value: function shouldComponentUpdate(nextProps, nextState) {
+      if (this.props.onlyUpdateStateOnSubmit) {
+        return this.state.__formDataStatusDate !== nextState.__formDataStatusDate;
+      } else {
+        return true;
+      }
+    }
+  }, {
     key: 'componentWillReceiveProps',
     value: function componentWillReceiveProps(nextProps) {
       // console.warn('componentWillReceiveProps', nextProps);
@@ -211,7 +228,6 @@ var ResponsiveForm = function (_Component) {
     value: function submitForm() {
       var _this2 = this;
 
-      // console.log('this.props.blockPageUI', this.props.blockPageUI);
       if (this.props.blockPageUI) {
         this.props.setUILoadedState(false, this.props.blockPageUILayout);
       }
@@ -270,10 +286,16 @@ var ResponsiveForm = function (_Component) {
       }
       // console.debug({ submitFormData, formdata, validationErrors });
       if (validationErrors && (0, _keys2.default)(validationErrors).length < 1) {
-        this.setState({ formDataErrors: {} });
+        this.setState({
+          formDataErrors: {},
+          __formIsSubmitting: false
+        });
       }
       if (validationErrors && (0, _keys2.default)(validationErrors).length > 0) {
-        this.setState({ formDataErrors: validationErrors });
+        this.setState({
+          formDataErrors: validationErrors,
+          __formIsSubmitting: false
+        });
         console.debug('has errors', validationErrors, { submitFormData: submitFormData });
         if (this.props.blockPageUI) {
           this.props.setDebugUILoadedState(true);
@@ -414,6 +436,8 @@ var ResponsiveForm = function (_Component) {
             return _this3.getHiddenInput({ formElement: formElement, i: j, formgroup: formgroup });
           } else if (formElement.type === 'datalist') {
             return _this3.getFormDatalist({ formElement: formElement, i: j, formgroup: formgroup });
+          } else if (formElement.type === 'dropdown') {
+            return _this3.getFormDropdown({ formElement: formElement, i: j, formgroup: formgroup });
           } else if (formElement.type === 'datatable') {
             return _this3.getFormDatatable({ formElement: formElement, i: j, formgroup: formgroup });
           } else if (formElement.type === 'checkbox' || formElement.type === 'radio') {
@@ -450,6 +474,8 @@ var ResponsiveForm = function (_Component) {
             return _this3.getImage({ formElement: formElement, i: j, formgroup: formgroup });
           } else if (formElement.type === 'slider') {
             return _this3.getSliderInput({ formElement: formElement, i: j, formgroup: formgroup });
+          } else if (formElement.type === 'staticLayout') {
+            return _this3.staticLayouts[formElement.value];
           } else if (formElement.type === 'layout') {
             var layoutComponent = formElement.value;
             if (_this3.props.includeFormDataOnLayout) {

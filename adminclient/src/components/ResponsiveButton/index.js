@@ -10,6 +10,7 @@ const propTypes = {
 };
 
 const defaultProps = {
+  // useAllPropsAsClickProp: true,
   // onClick: '/',
   style: {},
 };
@@ -51,10 +52,10 @@ class ResponsiveButton extends Component {
     };
     let linkSelectionProp = (clickThisProp)
       ? thisDotProp[clickThisProp]
-      : clickPropObject;
+      : clickPropObject || this.props;
     let onclickProp = (clickBaseUrl)
       ? this.getButtonLink(clickBaseUrl, clickLinkParams, linkSelectionProp)
-      : clickPassProps;
+      : clickPassProps || clickPropObject;
     
     if (clickAddPropObject && linkSelectionProp) {
       linkSelectionProp[ clickAddPropObject ] = this.props[ clickAddPropObject ];

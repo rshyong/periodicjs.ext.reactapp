@@ -53,6 +53,7 @@ var propTypes = {
 };
 
 var defaultProps = {
+  // useAllPropsAsClickProp: true,
   // onClick: '/',
   style: {}
 };
@@ -120,8 +121,8 @@ var ResponsiveButton = function (_Component) {
       var onclickFunction = function onclickFunction(data) {
         console.debug('ResponsiveButton', { data: data });
       };
-      var linkSelectionProp = clickThisProp ? thisDotProp[clickThisProp] : clickPropObject;
-      var onclickProp = clickBaseUrl ? this.getButtonLink(clickBaseUrl, clickLinkParams, linkSelectionProp) : clickPassProps;
+      var linkSelectionProp = clickThisProp ? thisDotProp[clickThisProp] : clickPropObject || this.props;
+      var onclickProp = clickBaseUrl ? this.getButtonLink(clickBaseUrl, clickLinkParams, linkSelectionProp) : clickPassProps || clickPropObject;
 
       if (clickAddPropObject && linkSelectionProp) {
         linkSelectionProp[clickAddPropObject] = this.props[clickAddPropObject];

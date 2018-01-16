@@ -3,7 +3,7 @@ import { Columns, Card, CardHeader, CardHeaderTitle, CardContent, CardFooter, Ca
 import ResponsiveCard from '../ResponsiveCard';
 import { getRenderedComponent, } from '../AppLayoutMap';
 import utilities from '../../util';
-import { getFormTextInputArea, getFormMaskedInput, getFormCheckbox, getFormSubmit, getFormSelect, getCardFooterItem, getFormCode, getFormTextArea, getFormEditor, getFormLink, getHiddenInput, getFormGroup, getImage, getFormDatalist, getRawInput, getSliderInput, getFormDatatable, getFormSwitch, } from './FormElements';
+import { getFormTextInputArea, getFormMaskedInput, getFormDropdown, getFormCheckbox, getFormSubmit, getFormSelect, getCardFooterItem, getFormCode, getFormTextArea, getFormEditor, getFormLink, getHiddenInput, getFormGroup, getImage, getFormDatalist, getRawInput, getSliderInput, getFormDatatable, getFormSwitch, } from './FormElements';
 import { getCallbackFromString, setFormNameFields, assignHiddenFields, validateForm, assignFormBody, handleFormSubmitNotification, handleSuccessCallbacks, submitThisDotPropsFunc, submitWindowFunc, validateFormElement, } from './FormHelpers';
 import flatten from 'flat';
 import qs from 'querystring';
@@ -27,6 +27,7 @@ const propTypes = {
   validations: PropTypes.array,
   hiddenFields: PropTypes.array,
   footergroups: PropTypes.array,
+  onlyUpdateStateOnSubmit: PropTypes.bool,
   formgroups: PropTypes.oneOfType([
     PropTypes.bool,
     PropTypes.object,
@@ -47,7 +48,8 @@ const defaultProps = {
   useLoadingButtons: false,
   includeFormDataOnLayout:false,
   onSubmit: 'func:this.props.debug',
-  formgroups:[],
+  formgroups: [],
+  updateStateOnSubmit: false,
 };
 
 function getFunctionFromProps(options) {
@@ -108,6 +110,7 @@ class ResponsiveForm extends Component{
     this.getFormCode = getFormCode.bind(this);
     this.getFormTextInputArea = getFormTextInputArea.bind(this);
     this.getFormMaskedInput = getFormMaskedInput.bind(this);
+    this.getFormDropdown = getFormDropdown.bind(this);
     this.getFormTextArea = getFormTextArea.bind(this);
     this.getFormCheckbox = getFormCheckbox.bind(this);
     this.getCardFooterItem = getCardFooterItem.bind(this);
@@ -122,6 +125,20 @@ class ResponsiveForm extends Component{
     this.getFormGroup = getFormGroup.bind(this);
     this.getImage = getImage.bind(this);
     this.validateFormElement = validateFormElement.bind(this);
+
+    this.staticLayouts = (this.props.staticLayouts)
+      ? Object.keys(this.props.staticLayouts).reduce((result, layout) => {
+        result[layout] = this.getRenderedComponent(this.props.staticLayouts[layout], this.state);
+        return result;
+      }, {})
+      : {};
+  }
+  shouldComponentUpdate(nextProps, nextState){
+    if (this.props.onlyUpdateStateOnSubmit) {
+      return this.state.__formDataStatusDate !== nextState.__formDataStatusDate;
+    } else {
+      return true;
+    }
   }
   componentWillReceiveProps(nextProps) {
     // console.warn('componentWillReceiveProps', nextProps);
@@ -150,7 +167,6 @@ class ResponsiveForm extends Component{
     return returnLink;
   }
   submitForm() {
-    // console.log('this.props.blockPageUI', this.props.blockPageUI);
     if (this.props.blockPageUI) {
       this.props.setUILoadedState(false, this.props.blockPageUILayout);
     }
@@ -209,10 +225,16 @@ class ResponsiveForm extends Component{
     }
     // console.debug({ submitFormData, formdata, validationErrors });
     if (validationErrors && Object.keys(validationErrors).length < 1) {
-      this.setState({ formDataErrors: {}, });
+      this.setState({
+        formDataErrors: {},
+        __formIsSubmitting: false,
+      });
     }
     if (validationErrors && Object.keys(validationErrors).length > 0) {
-      this.setState({ formDataErrors: validationErrors, });
+      this.setState({
+        formDataErrors: validationErrors,
+        __formIsSubmitting: false,
+      });
       console.debug('has errors', validationErrors, { submitFormData, });
       if (this.props.blockPageUI) {
         this.props.setDebugUILoadedState(true);
@@ -368,6 +390,8 @@ class ResponsiveForm extends Component{
           return this.getHiddenInput({ formElement,  i:j, formgroup, });
         } else if (formElement.type === 'datalist') {
           return this.getFormDatalist({ formElement,  i:j, formgroup, });
+        } else if (formElement.type === 'dropdown') {
+          return this.getFormDropdown({ formElement,  i:j, formgroup, });
         } else if (formElement.type === 'datatable') {
           return this.getFormDatatable({ formElement,  i:j, formgroup, });
         } else if (formElement.type === 'checkbox' || formElement.type === 'radio') {
@@ -396,6 +420,8 @@ class ResponsiveForm extends Component{
           return this.getImage({ formElement,  i:j, formgroup, }); 
         } else if (formElement.type === 'slider') {
           return this.getSliderInput({ formElement,  i:j, formgroup, }); 
+        } else if (formElement.type === 'staticLayout') {
+          return this.staticLayouts[formElement.value]; 
         } else if (formElement.type === 'layout') {
           const layoutComponent = formElement.value;
           if (this.props.includeFormDataOnLayout) {

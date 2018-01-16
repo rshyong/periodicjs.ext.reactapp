@@ -9,6 +9,7 @@ var AppConfigSettings = {
   adminPath: '/r-admin',
   routerHistory: 'browserHistory',
   hot_reload: false,
+  disableLogger: false,
   includeCoreData: {
     manifest: true,
     navigation: true
@@ -41,7 +42,12 @@ var AppConfigSettings = {
       buttonColor: 'isWhite',
       useGlobalSearch: false,
       useHeaderLogout: false,
-      customButton: false,
+      productHeader: {
+        layout: false,
+        productLinks: []
+      },
+      customButton: {},
+      profileImageStyle: {},
       navLabelStyle: {},
       containerStyle: {},
       userNameStyle: {}

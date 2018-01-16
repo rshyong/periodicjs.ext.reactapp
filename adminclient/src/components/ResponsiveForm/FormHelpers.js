@@ -8,16 +8,26 @@ export function validateFormElement(options) {
     validation = (validation.length > 0) ? validation[0] : false;
     if (validation) {
       let validationerror = validate({
-        [validation.name]: this.state[validation.name], }, validation.constraints);
+        [validation.name]: this.state[validation.name],
+      }, validation.constraints);
       let validationErrors;
+      let validationValid;
       if (validationerror) {
         validationErrors = Object.assign({}, this.state.formDataErrors);
         validationErrors[validation.name] = validationerror[validation.name];
+        if (this.state.formDataValid) {
+          validationValid = Object.assign({}, this.state.formDataValid);
+          delete validationValid[validation.name];
+        }
       } else {
-        validationErrors = Object.assign({}, this.state.formDataErrors);
-        delete validationErrors[validation.name];
+        validationValid = Object.assign({}, this.state.formDataValid);
+        validationValid[validation.name] = true;
+        if (this.state.formDataErrors) {
+          validationErrors = Object.assign({}, this.state.formDataErrors);
+          delete validationErrors[validation.name];
+        }
       }
-      this.setState({ formDataErrors: validationErrors, });
+      this.setState({ formDataErrors: validationErrors, formDataValid: validationValid });
       // console.debug('has errors', validationErrors, 'this.state[formElement.name]', this.state[ formElement.name ]);
     }
   } catch (e) {
@@ -26,8 +36,8 @@ export function validateFormElement(options) {
 }
 
 export function validateForm(options) {
-  // console.debug('testin valdation',this.props.validations)
   let { formdata, validationErrors, } = options;
+  // console.debug('testin valdation',this.props.validations,) 
   if (this.props.validations) {
     this.props.validations.forEach(validation => {
       let validationerror = validate({
@@ -35,6 +45,8 @@ export function validateForm(options) {
       // console.debug(formdata[ validation.name ], { validation, validationerror, });
       if (validationerror) {
         validationErrors[validation.name] = validationerror[validation.name];
+      } else {
+        delete validationErrors[validation.name];
       }
     });
   } else {
